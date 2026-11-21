@@ -1,0 +1,133 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int        @id @default(autoincrement())
+  name         String
+  email        String     @unique
+  passwordHash String
+  role         String     @default("Customer")
+  createdAt    DateTime   @default(now())
+  events       Event[]
+  seatHolds    SeatHold[]
+  bookings     Booking[]
+  entryLogs    EntryLog[]
+}
+
+model Venue {
+  id        Int      @id @default(autoincrement())
+  venueCode String   @unique @default(uuid())
+  name      String
+  city      String
+  address   String
+  capacity  Int
+  seats     Seat[]
+  events    Event[]
+}
+
+model Seat {
+  id          Int          @id @default(autoincrement())
+  venueId     Int
+  section     String
+  rowLabel    String
+  seatNumber  Int
+  category    String
+  venue       Venue        @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  seatHolds   SeatHold[]
+  bookedSeats BookedSeat[]
+}
+
+model Event {
+  id            Int          @id @default(autoincrement())
+  eventCode     String       @unique @default(uuid())
+  title         String
+  category      String
+  eventDateTime DateTime
+  description   String?
+  status        String       @default("Draft")
+  venueId       Int
+  organizerId   Int
+  venue         Venue        @relation(fields: [venueId], references: [id])
+  organizer     User         @relation(fields: [organizerId], references: [id])
+  priceTiers    PriceTier[]
+  seatHolds     SeatHold[]
+  bookings      Booking[]
+  bookedSeats   BookedSeat[]
+  entryLogs     EntryLog[]
+}
+
+model PriceTier {
+  id       Int    @id @default(autoincrement())
+  eventId  Int
+  category String
+  price    Float
+  event    Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+model SeatHold {
+  id        Int      @id @default(autoincrement())
+  eventId   Int
+  seatId    Int
+  userId    Int
+  expiresAt DateTime
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  seat      Seat     @relation(fields: [seatId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([eventId, seatId])
+}
+
+model Booking {
+  id          Int          @id @default(autoincrement())
+  bookingRef  String       @unique @default(uuid())
+  eventId     Int
+  userId      Int
+  totalAmount Float
+  status      String       @default("Confirmed")
+  qrToken     String       @unique @default(uuid())
+  qrDataUrl   String?  @db.Text
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  event       Event        @relation(fields: [eventId], references: [id])
+  user        User         @relation(fields: [userId], references: [id])
+  bookedSeats BookedSeat[]
+  payments    Payment[]
+  entryLog    EntryLog?
+}
+
+model BookedSeat {
+  id        Int     @id @default(autoincrement())
+  bookingId Int
+  eventId   Int
+  seatId    Int
+  pricePaid Float
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  event     Event   @relation(fields: [eventId], references: [id])
+  seat      Seat    @relation(fields: [seatId], references: [id])
+  @@unique([eventId, seatId])
+}
+
+model Payment {
+  id        Int      @id @default(autoincrement())
+  bookingId Int
+  amount    Float
+  txnType   String
+  createdAt DateTime @default(now())
+  booking   Booking  @relation(fields: [bookingId], references: [id])
+}
+
+model EntryLog {
+  id        Int      @id @default(autoincrement())
+  bookingId Int      @unique
+  eventId   Int
+  scannedBy Int
+  scannedAt DateTime @default(now())
+  booking   Booking  @relation(fields: [bookingId], references: [id])
+  event     Event    @relation(fields: [eventId], references: [id])
+  staff     User     @relation(fields: [scannedBy], references: [id])
+}
